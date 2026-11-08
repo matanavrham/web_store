@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebStore</title>
+    <style>
+        :root {
+            color-scheme: light;
+            --ink: #17232d;
+            --muted: #63717d;
+            --line: #e3e9ee;
+            --surface: #ffffff;
+            --page: #f4f7f9;
+            --accent: #126b68;
+            --accent-dark: #0d5552;
+            --danger: #a33b37;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            margin: 0;
+            background: var(--page);
+            color: var(--ink);
+            font-family: Inter, "Segoe UI", Arial, sans-serif;
+        }
+
+        .topbar {
+            background: #142d3a;
+            color: white;
+            padding: 20px max(24px, calc((100vw - 1180px) / 2));
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+        }
+
+        .brand { margin: 0; font-size: 1.35rem; letter-spacing: .02em; }
+        .tagline { margin: 4px 0 0; color: #c5d4dc; font-size: .92rem; }
+        .api-status { font-size: .85rem; color: #c5d4dc; }
+        .api-status[data-state="ready"] { color: #a8f0ce; }
+        .api-status[data-state="error"] { color: #ffc5bd; }
+
+        main {
+            max-width: 1180px;
+            margin: 32px auto;
+            padding: 0 24px 40px;
+        }
+
+        .page-heading { margin-bottom: 22px; }
+        .page-heading h2 { margin: 0 0 6px; font-size: 1.65rem; }
+        .page-heading p { margin: 0; color: var(--muted); }
+
+        .layout {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) 310px;
+            gap: 22px;
+            align-items: start;
+        }
+
+        .product-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 16px;
+        }
+
+        .product-card, .cart-panel, .message-panel {
+            background: var(--surface);
+            border: 1px solid var(--line);
+            border-radius: 14px;
+            box-shadow: 0 5px 18px rgb(25 44 57 / 5%);
+        }
+
+        .product-card {
+            min-height: 205px;
+            padding: 18px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .product-card h3 { margin: 0 0 8px; font-size: 1.05rem; }
+        .description { margin: 0 0 14px; color: var(--muted); line-height: 1.45; flex: 1; }
+        .product-meta { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; margin-bottom: 13px; }
+        .price { font-weight: 700; font-size: 1.08rem; }
+        .stock { color: var(--muted); font-size: .82rem; text-align: right; }
+
+        button {
+            border: 0;
+            border-radius: 8px;
+            cursor: pointer;
+            font: inherit;
+            transition: background .15s ease, transform .15s ease;
+        }
+
+        button:active { transform: translateY(1px); }
+        button:focus-visible { outline: 3px solid #71c5be; outline-offset: 2px; }
+
+        .add-button {
+            align-self: flex-start;
+            padding: 8px 12px;
+            color: white;
+            background: var(--accent);
+            font-size: .88rem;
+            font-weight: 650;
+        }
+
+        .add-button:hover { background: var(--accent-dark); }
+        .add-button:disabled { background: #aab5bd; cursor: not-allowed; }
+
+        .cart-panel { position: sticky; top: 20px; overflow: hidden; }
+        .cart-heading { padding: 17px 18px; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; align-items: center; }
+        .cart-heading h2 { margin: 0; font-size: 1.1rem; }
+        .cart-count { color: var(--muted); font-size: .83rem; }
+        .cart-body { padding: 16px 18px; }
+        .cart-empty { margin: 4px 0; color: var(--muted); line-height: 1.5; }
+        .cart-item { padding: 12px 0; border-bottom: 1px solid var(--line); }
+        .cart-item:first-child { padding-top: 0; }
+        .cart-item-top { display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; }
+        .cart-item-name { font-weight: 650; line-height: 1.35; }
+        .remove-button { background: transparent; color: var(--danger); padding: 2px 4px; font-size: .8rem; }
+        .cart-item-bottom { display: flex; justify-content: space-between; align-items: center; margin-top: 9px; }
+        .quantity-control { display: inline-flex; align-items: center; gap: 8px; }
+        .quantity-control button { width: 25px; height: 25px; background: #edf2f4; color: var(--ink); font-weight: 700; }
+        .quantity-control button:hover { background: #dfe8eb; }
+        .line-total { font-weight: 650; font-size: .92rem; }
+        .cart-total { display: flex; justify-content: space-between; font-weight: 750; padding: 16px 0 8px; }
+        .clear-button { margin-top: 10px; background: transparent; color: var(--muted); padding: 6px 0; font-size: .84rem; text-decoration: underline; }
+
+        .message-panel { padding: 22px; color: var(--muted); }
+        .error-panel { color: #842d2a; border-color: #edc6c3; background: #fff8f7; }
+        .retry-button { margin-top: 12px; padding: 8px 12px; background: var(--accent); color: white; }
+        .toast { min-height: 22px; margin: 0 0 12px; color: var(--accent-dark); font-size: .9rem; }
+
+        @media (max-width: 800px) {
+            .layout { grid-template-columns: 1fr; }
+            .cart-panel { position: static; grid-row: 1; }
+        }
+
+        @media (max-width: 520px) {
+            main { margin-top: 22px; padding-inline: 16px; }
+            .topbar { padding-inline: 16px; align-items: flex-start; flex-direction: column; }
+            .product-grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+<header class="topbar">
+    <div>
+        <h1 class="brand">WebStore</h1>
+        <p class="tagline">A small Spring Boot store demo</p>
+    </div>
+    <div id="apiStatus" class="api-status" data-state="loading" aria-live="polite">Loading products…</div>
+</header>
+
+<main>
+    <div class="page-heading">
+        <h2>Products</h2>
+        <p>Select a product and add it to your cart.</p>
+    </div>
+
+    <div class="layout">
+        <section aria-label="Product list">
+            <p id="toast" class="toast" aria-live="polite"></p>
+            <div id="products" class="product-grid" aria-live="polite"></div>
+            <div id="loadMessage" class="message-panel">Loading product list…</div>
+        </section>
+
+        <aside class="cart-panel" aria-label="Shopping cart">
+            <div class="cart-heading">
+                <h2>Your cart</h2>
+                <span id="cartCount" class="cart-count">0 items</span>
+            </div>
+            <div class="cart-body">
+                <p id="cartEmpty" class="cart-empty">Your cart is empty. Add a product to get started.</p>
+                <div id="cartItems"></div>
+                <div id="cartSummary" hidden>
+                    <div class="cart-total"><span>Total</span><span id="cartTotal">₪0.00</span></div>
+                    <button id="clearCart" class="clear-button" type="button">Clear cart</button>
+                </div>
+            </div>
+        </aside>
+    </div>
+</main>
+
+<script>
+    const PRODUCTS_URL = "/api/products";
+    const CART_STORAGE_KEY = "webstore.cart.v1";
+
+    const productsElement = document.getElementById("products");
+    const loadMessageElement = document.getElementById("loadMessage");
+    const apiStatusElement = document.getElementById("apiStatus");
+    const cartItemsElement = document.getElementById("cartItems");
+    const cartEmptyElement = document.getElementById("cartEmpty");
+    const cartSummaryElement = document.getElementById("cartSummary");
+    const cartCountElement = document.getElementById("cartCount");
+    const cartTotalElement = document.getElementById("cartTotal");
+    const toastElement = document.getElementById("toast");
+
+    const money = new Intl.NumberFormat("en-IL", {
+        style: "currency",
+        currency: "ILS"
+    });
+
+    let products = [];
+    let cart = readCart();
+
+    function readCart() {
+        try {
+            const saved = JSON.parse(localStorage.getItem(CART_STORAGE_KEY) || "[]");
+            return Array.isArray(saved) ? saved : [];
+        } catch {
+            return [];
+        }
+    }
+
+    function saveCart() {
+        localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(cart));
+    }
+
+    function escapeHtml(value) {
+        return String(value ?? "").replace(/[&<>"']/g, character => ({
+            "&": "&amp;",
+            "<": "&lt;",
+            ">": "&gt;",
+            "\"": "&quot;",
+            "'": "&#39;"
+        })[character]);
+    }
+
+    function formatPrice(value) {
+        return money.format(Number(value) || 0);
+    }
+
+    function showToast(message) {
+        toastElement.textContent = message;
+        window.setTimeout(() => {
+            if (toastElement.textContent === message) toastElement.textContent = "";
+        }, 2500);
+    }
+
+    function renderProducts() {
+        if (products.length === 0) {
+            productsElement.innerHTML = "";
+            loadMessageElement.hidden = false;
+            loadMessageElement.textContent = "No products were found in the database.";
+            return;
+        }
+
+        loadMessageElement.hidden = true;
+        productsElement.innerHTML = products.map(product => {
+            const stock = Number(product.stockQuantity) || 0;
+            return `
+                <article class="product-card">
+                    <h3>${escapeHtml(product.name)}</h3>
+                    <p class="description">${escapeHtml(product.description || "No description provided.")}</p>
+                    <div class="product-meta">
+                        <span class="price">${formatPrice(product.price)}</span>
+                        <span class="stock">${stock} in stock</span>
+                    </div>
+                    <button class="add-button" type="button" data-add="${Number(product.id)}" ${stock < 1 ? "disabled" : ""}>
+                        ${stock < 1 ? "Out of stock" : "Add to cart"}
+                    </button>
+                </article>`;
+        }).join("");
+    }
+
+    function renderCart() {
+        const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0);
+        const totalPrice = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
+
+        cartCountElement.textContent = `${totalItems} ${totalItems === 1 ? "item" : "items"}`;
+        cartEmptyElement.hidden = cart.length > 0;
+        cartSummaryElement.hidden = cart.length === 0;
+        cartTotalElement.textContent = formatPrice(totalPrice);
+
+        cartItemsElement.innerHTML = cart.map(item => `
+            <div class="cart-item">
+                <div class="cart-item-top">
+                    <span class="cart-item-name">${escapeHtml(item.name)}</span>
+                    <button class="remove-button" type="button" data-remove="${Number(item.id)}" aria-label="Remove ${escapeHtml(item.name)}">Remove</button>
+                </div>
+                <div class="cart-item-bottom">
+                    <div class="quantity-control" aria-label="Quantity controls">
+                        <button type="button" data-change="-1" data-id="${Number(item.id)}" aria-label="Decrease quantity">−</button>
+                        <span>${item.quantity}</span>
+                        <button type="button" data-change="1" data-id="${Number(item.id)}" aria-label="Increase quantity">+</button>
+                    </div>
+                    <span class="line-total">${formatPrice(item.price * item.quantity)}</span>
+                </div>
+            </div>`).join("");
+    }
+
+    function addToCart(productId) {
+        const product = products.find(item => Number(item.id) === productId);
+        if (!product) return;
+
+        const stock = Number(product.stockQuantity) || 0;
+        const existing = cart.find(item => Number(item.id) === productId);
+        const currentQuantity = existing ? existing.quantity : 0;
+
+        if (currentQuantity >= stock) {
+            showToast("You cannot add more than the available stock.");
+            return;
+        }
+
+        if (existing) {
+            existing.quantity += 1;
+        } else {
+            cart.push({
+                id: Number(product.id),
+                name: product.name,
+                price: Number(product.price),
+                quantity: 1
+            });
+        }
+
+        saveCart();
+        renderCart();
+        showToast(`${product.name} added to cart.`);
+    }
+
+    function changeQuantity(productId, change) {
+        const item = cart.find(cartItem => Number(cartItem.id) === productId);
+        if (!item) return;
+
+        const nextQuantity = item.quantity + change;
+        if (nextQuantity < 1) {
+            cart = cart.filter(cartItem => Number(cartItem.id) !== productId);
+        } else {
+            const product = products.find(productItem => Number(productItem.id) === productId);
+            if (change > 0 && product && nextQuantity > Number(product.stockQuantity)) {
+                showToast("You cannot add more than the available stock.");
+                return;
+            }
+            item.quantity = nextQuantity;
+        }
+
+        saveCart();
+        renderCart();
+    }
+
+    async function loadProducts() {
+        apiStatusElement.dataset.state = "loading";
+        apiStatusElement.textContent = "Connecting to product API…";
+        loadMessageElement.hidden = false;
+        loadMessageElement.className = "message-panel";
+        loadMessageElement.textContent = "Loading product list…";
+
+        try {
+            const response = await fetch(PRODUCTS_URL, {
+                headers: { "Accept": "application/json" }
+            });
+            if (!response.ok) {
+                throw new Error(`The product API returned HTTP ${response.status}.`);
+            }
+
+            products = await response.json();
+            if (!Array.isArray(products)) {
+                throw new Error("The product API response was not a JSON array.");
+            }
+
+            cart = cart.filter(item => products.some(product => Number(product.id) === Number(item.id)));
+            cart = cart.map(item => {
+                const product = products.find(productItem => Number(productItem.id) === Number(item.id));
+                return {
+                    id: Number(product.id),
+                    name: product.name,
+                    price: Number(product.price),
+                    quantity: Math.min(Number(item.quantity) || 1, Number(product.stockQuantity) || 0)
+                };
+            }).filter(item => item.quantity > 0);
+
+            saveCart();
+            apiStatusElement.dataset.state = "ready";
+            apiStatusElement.textContent = "Product API connected";
+            renderProducts();
+            renderCart();
+        } catch (error) {
+            apiStatusElement.dataset.state = "error";
+            apiStatusElement.textContent = "Could not load products";
+            productsElement.innerHTML = "";
+            loadMessageElement.hidden = false;
+            loadMessageElement.className = "message-panel error-panel";
+            loadMessageElement.innerHTML = `${escapeHtml(error.message)}<br><button class="retry-button" id="retryLoad" type="button">Try again</button>`;
+        }
+    }
+
+    productsElement.addEventListener("click", event => {
+        const button = event.target.closest("[data-add]");
+        if (button) addToCart(Number(button.dataset.add));
+    });
+
+    cartItemsElement.addEventListener("click", event => {
+        const removeButton = event.target.closest("[data-remove]");
+        if (removeButton) {
+            const productId = Number(removeButton.dataset.remove);
+            cart = cart.filter(item => Number(item.id) !== productId);
+            saveCart();
+            renderCart();
+            return;
+        }
+
+        const changeButton = event.target.closest("[data-change]");
+        if (changeButton) {
+            changeQuantity(Number(changeButton.dataset.id), Number(changeButton.dataset.change));
+        }
+    });
+
+    document.getElementById("clearCart").addEventListener("click", () => {
+        cart = [];
+        saveCart();
+        renderCart();
+    });
+
+    loadMessageElement.addEventListener("click", event => {
+        if (event.target.id === "retryLoad") loadProducts();
+    });
+
+    renderCart();
+    loadProducts();
+</script>
+</body>
+</html>
